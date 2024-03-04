@@ -1,18 +1,54 @@
 #include <stdio.h>
 #include <stdlib.h>
+int num = 0;
 struct process {
     unsigned short pid;
     unsigned int cputime;
     unsigned int period;
 
-    unsigned int isReady;
-    unsigned int timeSpent;
-    unsigned int timeLeft;
-
     unsigned int waittimeTotal;
     unsigned int processesCreated;
 };
-
+struct runningProcess {
+    struct process *proc;
+    unsigned int age;
+    unsigned int timeSpent;
+    unsigned int timeLeft;
+    int tid;
+};
+void addQ(struct runningProcess *q, int *len, struct process *p) {
+    struct runningProcess temp;
+    temp.proc = p;
+    temp.timeLeft = temp.proc->period;
+    temp.timeSpent = 0;
+    temp.age = 0;
+    temp.tid = num;
+    num++;
+    q[*len] = temp;
+    *len = *len+1;
+}
+void removeQ(struct runningProcess *q, int *len, struct runningProcess *proc) {
+    //struct runningProcess *n = q->front;
+    int reached = 0;
+    if(*len == 0) {
+        printf("nothing");
+        return;
+    } else {
+        for (int i = 0; i < *len; i++) {
+            if(reached) {
+                q[i-1] = q[i];
+            } else {
+                if(&q[i] == proc) {
+                    reached = 1;
+                }
+            }
+        }
+        
+        if(!reached) printf("not found");
+        else *len = *len-1;
+        return;
+    }
+}
 unsigned int gcd2(unsigned int a, unsigned int b) {
     if (a == 0)
         return b;
@@ -33,103 +69,102 @@ unsigned int computeLCM(unsigned int *periodArray, unsigned int len) {
 
 int main(int argc, char *argv[]) {
     unsigned int processNumber;
-    struct process *processArray;
+    struct process *processList;
+    int readyQueueLength = 0;
     int creations = 0;
-    unsigned int prevRunningID = 0;
-    unsigned int runningID;
+    struct runningProcess *readyQueue;
+    struct runningProcess *running = NULL;
+    struct runningProcess *prev;
+    int prevtid = -1;
     unsigned int *periodArray;
-    unsigned int **timeLeftArray;
-    unsigned int **readyArray;
     unsigned int maxTime;
     unsigned long currentTime = 0;
 
     printf("Enter the number of processes to schedule: ");
     scanf("%u", &processNumber);
-    processArray  = (struct process*)malloc(processNumber * sizeof(struct process));
-    periodArray   = (unsigned int *)malloc(processNumber * sizeof(unsigned int));
-    timeLeftArray = (unsigned int **)malloc(processNumber * sizeof(unsigned int*));
-    readyArray    = (unsigned int **)malloc(processNumber * sizeof(unsigned int*));
+    processList = (struct process*)malloc(processNumber * sizeof(struct process));
+    readyQueue = malloc(10*sizeof(struct runningProcess));
+    periodArray = (unsigned int *)malloc(processNumber * sizeof(unsigned int));
 
     for (unsigned int i = 0; i < processNumber; i++) {
         printf("Enter the CPU time of process %u: ", i+1);
-        scanf("%u", &processArray[i].cputime);
+        scanf("%u", &processList[i].cputime);
 
         printf("Enter the period of process %u: ", i+1);
-        scanf("%u", &processArray[i].period);
+        scanf("%u", &processList[i].period);
 
-        processArray[i].pid = i+1;
-        periodArray[i] = processArray[i].period;
-        timeLeftArray[i] = &processArray[i].timeLeft;
-        readyArray[i] = &processArray[i].isReady;
+        processList[i].pid = i+1;
+        periodArray[i] = processList[i].period;
     }
     maxTime = computeLCM(periodArray, processNumber);
     printf("maxtime: %u\n", maxTime);
 
+    struct runningProcess n;
     while(currentTime < maxTime) {
-        if(currentTime == 8)
-            printf("%u, %u, %u\n", *timeLeftArray[0] * *readyArray[0], *timeLeftArray[1] * *readyArray[1], *timeLeftArray[2] * *readyArray[2]);
-        if(processArray[runningID].timeSpent == processArray[runningID].cputime) { //ends
-            printf("%lu: process %u ends\n", currentTime, processArray[runningID].pid);
-
-            processArray[runningID].timeSpent = 0;
+        if(running != NULL && running->timeSpent >= running->proc->cputime) { //removing
+            printf("%lu: process %u ends\n", currentTime, running->proc->pid);
+            removeQ(readyQueue, &readyQueueLength, running);
+            prev = NULL;
+            //prevtid = running->tid;
+            running = NULL;
         }
         
-        for(int i=0;i<processNumber;i++) {
-            if(currentTime % processArray[i].period == 0) {
-                if(*readyArray[i] && currentTime!=0) {
-                    printf("%lu: process %u missed deadline (%u ms left), new deadline is %lu\n", currentTime, processArray[i].pid, processArray[i].cputime - processArray[i].timeSpent, currentTime+periodArray[i]);
-                    processArray[i].timeSpent = 0;
-                }
-                creations = 1;
-                processArray[i].isReady = 1;
-                processArray[i].timeLeft = processArray[i].period;
+        for(int i=readyQueueLength-1;i>=0;i--) { //creating
+            if(readyQueue[i].timeLeft == 0) {
+                readyQueue[i].timeLeft = readyQueue[i].proc->period;
+                printf("%lu: process %u missed deadline (%u ms left), new deadline is %lu\n", currentTime, readyQueue[i].proc->pid, readyQueue[i].proc->cputime - readyQueue[i].timeSpent, currentTime+readyQueue[i].proc->period);
             }
         }
         
-        if(creations == 1) {
-            printf("%lu: processes (oldest not first):", currentTime);
+        for(int i=0;i<processNumber;i++) { //creating
+            if(currentTime % processList[i].period == 0) {
+                addQ(readyQueue, &readyQueueLength, &processList[i]);
+                creations = 1;
+            }
+        }
+        if(creations > 0) {
+            printf("%lu: processes (oldest first):", currentTime);
             creations = 0;
-            for(int i=0; i<processNumber; i++) {
-                if(processArray[i].isReady)
-                    printf(" %u (%u ms)", processArray[i].pid, processArray[i].cputime - processArray[i].timeSpent);
+            for(int i=0; i<readyQueueLength; i++) {
+                printf(" %u (%u ms)", readyQueue[i].proc->pid, readyQueue[i].proc->cputime - readyQueue[i].timeSpent);
             }
             printf("\n");
         }
-
         unsigned int lowest = 0xffffffff;
-        for (int i = 0; i < processNumber; i++) {
-            printf("step %u\n", i);
-            processArray[i].timeLeft = processArray[i].timeLeft = processArray[i].period - currentTime % processArray[i].period;
-            if(*timeLeftArray[i] * *readyArray[i] == 0) {
-                continue;
-            }
-            printf("tl %u, %u\n", *timeLeftArray[i], lowest);
-            if(*timeLeftArray[i] == lowest) {
-                printf("ages %u, %u\n", periodArray[i]-*timeLeftArray[i],periodArray[runningID]-*timeLeftArray[runningID]);
-                if(periodArray[i]-*timeLeftArray[i] == periodArray[runningID]-*timeLeftArray[runningID]) {
-                    if (i < runningID) runningID = i;
-                } else if(periodArray[i]-*timeLeftArray[i] > periodArray[runningID]-*timeLeftArray[runningID]) {
-                    printf("here2 %u\n", runningID);
-                    runningID = i;
-                    
+        for(int i = 0; i < readyQueueLength; i++) {
+            readyQueue[i].timeLeft--;
+            readyQueue[i].age++;
+        }
+        for (int i = 0; i < readyQueueLength; i++) { //scheduling
+            if(readyQueue[i].timeLeft == lowest) {
+                if(readyQueue[i].age == running->age) {
+                    if(readyQueue[i].proc->pid < running->proc->pid) {
+                        lowest = readyQueue[i].timeLeft;
+                        running = &readyQueue[i];
+                    }
                 }
-            } else if(*timeLeftArray[i] < lowest) {
-                lowest = *timeLeftArray[i];
-                printf("here3 %u, %u\n", runningID, i);
-                runningID = i;
-            }  
+                if(readyQueue[i].age > running->age) {
+                    lowest = readyQueue[i].timeLeft;
+                    running = &readyQueue[i];
+                }
+            }
+            if(readyQueue[i].timeLeft < lowest) {
+                lowest = readyQueue[i].timeLeft;
+                running = &readyQueue[i];
+            }
         }
-        if(prevRunningID != runningID && *readyArray[prevRunningID]) {
-            printf("%lu: process %u preempted!\n", currentTime, processArray[prevRunningID].pid);
+        if(prev != NULL && running!= NULL && running->tid != prevtid && prev->timeSpent > 0 && prev->timeSpent < prev->proc->cputime) {
+            //printf("%u, %u, %u, %u\n", prev->timeSpent, prev->proc->cputime, prev->proc->pid, running->proc->pid);
+            printf("%lu: process %u preempted!\n", currentTime, prev->proc->pid);
         }
-        if(prevRunningID != runningID && *readyArray[runningID]) {
-            printf("%lu: process %u starts\n", currentTime, processArray[runningID].pid);
-        } else if(processArray[runningID].timeSpent == 0 && processArray[runningID].isReady)
-            printf("%lu: process %u starts\n", currentTime, processArray[runningID].pid);
-        prevRunningID = runningID;
-
-        if(processArray[runningID].isReady) {
-            processArray[runningID].timeSpent++;
+        //printf("%u, %u\n", prevtid, running->tid);
+        if(running != NULL && prevtid != running->tid) {
+            printf("%lu: process %u starts\n", currentTime, running->proc->pid);
+        } 
+        if(running != NULL) { //if something can run, run it for 1ms
+            prevtid = running->tid;
+            running->timeSpent++;
+            prev = running;
         }
         currentTime++;
     }
