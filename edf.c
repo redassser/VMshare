@@ -1,13 +1,18 @@
+/*******************************************************************************
+* Filename : edf.c
+* Author : Ryan Piedrahita
+* Date : 3 / 4 / 2024
+* Description : Earliest Deadline First Scheduling Algorithm
+* Pledge : I pledge my honor that I have abided by the Stevens Honor System
+******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 int num = 0;
+int i = 0;
 struct process {
     unsigned short pid;
     unsigned int cputime;
     unsigned int period;
-
-    unsigned int waittimeTotal;
-    unsigned int processesCreated;
 };
 struct runningProcess {
     struct process *proc;
@@ -76,6 +81,8 @@ int main(int argc, char *argv[]) {
     struct runningProcess *running = NULL;
     struct runningProcess *prev;
     int prevtid = -1;
+    unsigned int waittimeTotal = 0;
+    unsigned int processesCreated = 0;
     unsigned int *periodArray;
     unsigned int maxTime;
     unsigned long currentTime = 0;
@@ -97,17 +104,8 @@ int main(int argc, char *argv[]) {
         periodArray[i] = processList[i].period;
     }
     maxTime = computeLCM(periodArray, processNumber);
-    printf("maxtime: %u\n", maxTime);
 
-    struct runningProcess n;
     while(currentTime < maxTime) {
-        if(running != NULL && running->timeSpent >= running->proc->cputime) { //removing
-            printf("%lu: process %u ends\n", currentTime, running->proc->pid);
-            removeQ(readyQueue, &readyQueueLength, running);
-            prev = NULL;
-            //prevtid = running->tid;
-            running = NULL;
-        }
         
         for(int i=readyQueueLength-1;i>=0;i--) { //creating
             if(readyQueue[i].timeLeft == 0) {
@@ -118,6 +116,7 @@ int main(int argc, char *argv[]) {
         
         for(int i=0;i<processNumber;i++) { //creating
             if(currentTime % processList[i].period == 0) {
+                processesCreated++;
                 addQ(readyQueue, &readyQueueLength, &processList[i]);
                 creations = 1;
             }
@@ -166,8 +165,22 @@ int main(int argc, char *argv[]) {
             running->timeSpent++;
             prev = running;
         }
+        for(i = 0; i < readyQueueLength; i++) {
+            if(&readyQueue[i] != running) waittimeTotal++;
+        }
         currentTime++;
+        if(running != NULL && running->timeSpent >= running->proc->cputime) { //removing
+            printf("%lu: process %u ends\n", currentTime, running->proc->pid);
+            removeQ(readyQueue, &readyQueueLength, running);
+            prev = NULL;
+            running = NULL;
+        }
     }
-    printf("%lu: Max Time reached", currentTime);
+    printf("%lu: Max Time reached\n", currentTime);
+    printf("Sum of all waiting times: %u\n", waittimeTotal);
+    printf("Number of processes created: %u\n", processesCreated);
+    double avg = (double)waittimeTotal / (double)processesCreated;
+    printf("Average Waiting Time: %.2lf\n", avg);
+    
     return 0;
 }
