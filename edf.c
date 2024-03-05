@@ -113,9 +113,7 @@ int main() {
     struct runningProcess *running = NULL;
     int prevtid = -1;
     struct process *prevProc;
-    unsigned int prevAge;
     unsigned int prevTimeSpent;
-    unsigned int prevTimeLeft;
     unsigned int waittimeTotal = 0;
     unsigned int processesCreated = 0;
     unsigned int *periodArray;
@@ -144,7 +142,6 @@ int main() {
     while(currentTime < maxTime) {
         {
             int rtidtemp = 0; 
-            int ptidtemp = 0;
             if (running != NULL)
                 rtidtemp = running->tid;
             dlq = readyQueue;
@@ -168,11 +165,8 @@ int main() {
         if(creations > 0) {
             prq = readyQueue;
             int rtidtemp = 0; 
-            int ptidtemp = 0;
             if (running != NULL)
                 rtidtemp = running->tid;
-            if (prevProc != NULL)
-                ptidtemp = prevtid;
             qsort(prq, readyQueueLength, sizeof(struct runningProcess), compare2);
             printf("%lu: processes (oldest first):", currentTime);
             creations = 0;
@@ -220,9 +214,7 @@ int main() {
             if(running == NULL) prevProc = NULL;
             else prevProc = running->proc;
             prevtid = running->tid;
-            prevTimeLeft = running->timeLeft;
             prevTimeSpent = running->timeSpent;
-            prevAge = running->age;
         }
         for(i = 0; i < readyQueueLength; i++) {
             if(&readyQueue[i] != running) waittimeTotal++;
@@ -230,7 +222,6 @@ int main() {
         currentTime++;
         if(running != NULL && running->timeSpent >= running->proc->cputime) { //removing
             printf("%lu: process %u ends\n", currentTime, running->proc->pid);
-            int ptidtemp = prevtid;
             removeQ(readyQueue, &readyQueueLength, running);
             running = NULL;
         }
