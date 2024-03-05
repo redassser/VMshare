@@ -7,8 +7,12 @@
 ******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
+
+//iterators
 int num = 1;
 int i = 0;
+
+// Process structures for storage
 struct process {
     unsigned short pid;
     unsigned int cputime;
@@ -113,26 +117,31 @@ int main() {
     struct runningProcess *readyQueue;
     int readyQueueLength = 0;
 
-    struct runningProcess *dlq;
-    struct runningProcess *prq;
+    //  reference to currently running process
     struct runningProcess *running = NULL;
-    int prevtid = -1;
+
+    // variables to hold perviously running process's stuff
     struct process *prevProc = NULL;
+    int prevtid = -1;
     unsigned int prevTimeSpent;
-    unsigned int waittimeTotal = 0;
-    unsigned int processesCreated = 0;
-    int *periodArray;
+
+    //Time and Aggregate results
     unsigned int maxTime;
     unsigned long currentTime = 0;
-    int creations = 0;
 
+    unsigned int waittimeTotal = 0;
+    unsigned int processesCreated = 0;
+
+    int *periodArray; // Array for storing periods to calculate lcm
+    int creations = 0; // boolean
+
+    //User input for processes (period time and cpu time)
     printf("Enter the number of processes to schedule: ");
     scanf("%u", &processNumber);
     processList = (struct process*)malloc(processNumber * sizeof(struct process));
     readyQueue = malloc(40* sizeof(struct runningProcess));
     periodArray = (int *)malloc(processNumber * sizeof(int));
     
-
     for (int i = 0; i < processNumber; i++) {
         printf("Enter the CPU time of process %u: ", i+1);
         scanf("%u", &processList[i].cputime);
@@ -143,52 +152,59 @@ int main() {
         processList[i].pid = i+1;
         periodArray[i] = processList[i].period;
     }
+
+    //Get maxt time to end loop
     maxTime = computeLCM(periodArray, processNumber);
 
-    while(currentTime < maxTime) {
+    while(currentTime < maxTime) { // MAIN LOOP, time quanta of 1 ms.
+        
+        //  Print missed deadlines
         {
             int rtidtemp = 0; 
             if (running != NULL)
                 rtidtemp = running->tid;
-            dlq = readyQueue;
-            qsort(dlq, readyQueueLength, sizeof(struct runningProcess), compare);
+            qsort(readyQueue, readyQueueLength, sizeof(struct runningProcess), compare);
             for(int i=readyQueueLength-1;i>=0;i--) { //creating
                 if(running != NULL && readyQueue[i].tid == rtidtemp) running = &readyQueue[i];
-                if(dlq[i].timeLeft == 0) {
-                    dlq[i].timeLeft = dlq[i].proc->period;
-                    printf("%lu: process %u missed deadline (%u ms left), new deadline is %lu\n", currentTime, dlq[i].proc->pid, dlq[i].proc->cputime - dlq[i].timeSpent, currentTime+dlq[i].proc->period);
+                if(readyQueue[i].timeLeft == 0) {
+                    readyQueue[i].timeLeft = readyQueue[i].proc->period;
+                    printf("%lu: process %u missed deadline (%u ms left), new deadline is %lu\n", currentTime, readyQueue[i].proc->pid, readyQueue[i].proc->cputime - readyQueue[i].timeSpent, currentTime+readyQueue[i].proc->period);
                 }
             }
         }
 
-        for(int i=0;i<processNumber;i++) { //creating
+        //  Add process to ready queue at beginning of period
+        for(int i=0;i<processNumber;i++) {
             if(currentTime % processList[i].period == 0) {
                 processesCreated++;
                 addQ(readyQueue, &readyQueueLength, &processList[i]);
                 creations = 1;
             }
         }
+
+        //  If a process has been created, then 
+        //  Print ready queue processes 
         if(creations > 0) {
-            prq = readyQueue;
+            readyQueue = readyQueue;
             int rtidtemp = 0; 
             if (running != NULL)
                 rtidtemp = running->tid;
-            qsort(prq, readyQueueLength, sizeof(struct runningProcess), compare2);
+            qsort(readyQueue, readyQueueLength, sizeof(struct runningProcess), compare2);
             printf("%lu: processes (oldest first):", currentTime);
             creations = 0;
             for(int i=0; i<readyQueueLength; i++) {
                 if(running != NULL && readyQueue[i].tid == rtidtemp) running = &readyQueue[i];
-                printf(" %u (%u ms)", prq[i].proc->pid, prq[i].proc->cputime - prq[i].timeSpent);
+                printf(" %u (%u ms)", readyQueue[i].proc->pid, readyQueue[i].proc->cputime - readyQueue[i].timeSpent);
             }
             printf("\n");
 
         }
+
+        //  Main scheduling algo
         unsigned int lowest = 0xffffffff;
-        for(int i = 0; i < readyQueueLength; i++) {
+        for (int i = 0; i < readyQueueLength; i++) {
             readyQueue[i].timeLeft--;
             readyQueue[i].age++;
-        }
-        for (int i = 0; i < readyQueueLength; i++) { //scheduling
             if(readyQueue[i].timeLeft == lowest) {
                 if(readyQueue[i].age == running->age) {
                     if(readyQueue[i].proc->pid < running->proc->pid) {
@@ -206,15 +222,15 @@ int main() {
                 running = &readyQueue[i];
             }
         }
-        if(running != NULL && prevProc != NULL)
-            //printf("%lu: %u, %u, %u, %u, %u\n", currentTime, running->proc->pid, prevProc->pid, prevtid, prevTimeSpent, prevProc->cputime);
-        if(prevProc != NULL && running!= NULL && running->tid != prevtid && prevTimeSpent > 0 && prevTimeSpent < prevProc->cputime) {
+        
+        //  Print when a process has been preempted and/or started
+        if(prevProc != NULL && running!= NULL && running->tid != prevtid && prevTimeSpent > 0 && prevTimeSpent < prevProc->cputime)
             printf("%lu: process %u preempted!\n", currentTime, prevProc->pid);
-        }
-        if(running != NULL && prevtid != running->tid) {
+        if(running != NULL && prevtid != running->tid)
             printf("%lu: process %u starts\n", currentTime, running->proc->pid);
-        } 
-        if(running != NULL) { //if something can run, run it for 1ms
+        
+        //  Add 1 ms to the running process, and assign prev
+        if(running != NULL) {
             running->timeSpent++;
             
             if(running == NULL) prevProc = NULL;
@@ -222,25 +238,34 @@ int main() {
             prevtid = running->tid;
             prevTimeSpent = running->timeSpent;
         }
-        for(i = 0; i < readyQueueLength; i++) {
+
+        //Calculate wait times
+        for(i = 0; i < readyQueueLength; i++)
             if(&readyQueue[i] != running) waittimeTotal++;
-        }
+
+        //  Time advance
         currentTime++;
-        if(running != NULL && running->timeSpent >= running->proc->cputime) { //removing
+
+        //  Remove a process from ready queue of it has completed
+        if(running != NULL && running->timeSpent >= running->proc->cputime) {
             printf("%lu: process %u ends\n", currentTime, running->proc->pid);
             removeQ(readyQueue, &readyQueueLength, running);
             running = NULL;
         }
        
     }
+
+    //  Aggregate results
     printf("%lu: Max Time reached\n", currentTime);
     printf("Sum of all waiting times: %u\n", waittimeTotal);
     printf("Number of processes created: %u\n", processesCreated);
     double avg = (double)waittimeTotal / (double)processesCreated;
     printf("Average Waiting Time: %.2lf\n", avg);
     
+    // Mem
     free(processList);
     free(readyQueue);
     free(periodArray);
+
     return 0;
 }
