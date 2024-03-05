@@ -12,7 +12,7 @@ int i = 0;
 struct process {
     unsigned short pid;
     unsigned int cputime;
-    unsigned int period;
+    int period;
 };
 struct runningProcess {
     struct process *proc;
@@ -54,18 +54,18 @@ void removeQ(struct runningProcess *q, int *len, struct runningProcess *proc) {
         return;
     }
 }
-unsigned int gcd2(unsigned int a, unsigned int b) {
+unsigned int gcd2(int a, int b) {
     if (a == 0)
         return b;
     return gcd2(b % a, a);
 }
-unsigned int lcm2(unsigned int a, unsigned int b) {
+unsigned int lcm2(int a, int b) {
     return a * b / gcd2(a, b);
 }
-unsigned int computeLCM(unsigned int *periodArray, unsigned int len) {
-    unsigned int a = periodArray[0];
-    unsigned int b;
-    for (unsigned int i = 1; i < len; i++) {
+unsigned int computeLCM(int *periodArray, unsigned int len) {
+    int a = periodArray[0];
+    int b;
+    for (int i = 1; i < len; i++) {
         b = periodArray[i];
         a = lcm2(a, b);
     }
@@ -112,27 +112,27 @@ int main() {
     struct runningProcess *prq;
     struct runningProcess *running = NULL;
     int prevtid = -1;
-    struct process *prevProc;
+    struct process *prevProc = NULL;
     unsigned int prevTimeSpent;
     unsigned int waittimeTotal = 0;
     unsigned int processesCreated = 0;
-    unsigned int *periodArray;
+    int *periodArray;
     unsigned int maxTime;
     unsigned long currentTime = 0;
 
     printf("Enter the number of processes to schedule: ");
     scanf("%u", &processNumber);
     processList = (struct process*)malloc(processNumber * sizeof(struct process));
-    readyQueue = malloc(10*sizeof(struct runningProcess));
-    periodArray = (unsigned int *)malloc(processNumber * sizeof(unsigned int));
+    readyQueue = malloc(40* sizeof(struct runningProcess));
+    periodArray = (int *)malloc(processNumber * sizeof(int));
     
 
-    for (unsigned int i = 0; i < processNumber; i++) {
+    for (int i = 0; i < processNumber; i++) {
         printf("Enter the CPU time of process %u: ", i+1);
         scanf("%u", &processList[i].cputime);
 
         printf("Enter the period of process %u: ", i+1);
-        scanf("%u", &processList[i].period);
+        scanf("%i", &processList[i].period);
 
         processList[i].pid = i+1;
         periodArray[i] = processList[i].period;
@@ -233,5 +233,8 @@ int main() {
     double avg = (double)waittimeTotal / (double)processesCreated;
     printf("Average Waiting Time: %.2lf\n", avg);
     
+    free(processList);
+    free(readyQueue);
+    free(periodArray);
     return 0;
 }
