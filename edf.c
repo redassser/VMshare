@@ -21,6 +21,8 @@ struct runningProcess {
     unsigned int timeLeft;
     int tid;
 };
+// Ready Queue functions 
+//  Add to Ready Queue
 void addQ(struct runningProcess *q, int *len, struct process *p) {
     struct runningProcess temp;
     temp.proc = p;
@@ -32,28 +34,23 @@ void addQ(struct runningProcess *q, int *len, struct process *p) {
     q[*len] = temp;
     *len = *len+1;
 }
+//  Remove from Ready Queue
 void removeQ(struct runningProcess *q, int *len, struct runningProcess *proc) {
-    //struct runningProcess *n = q->front;
     int reached = 0;
-    if(*len == 0) {
-        printf("nothing");
-        return;
-    } else {
-        for (int i = 0; i < *len; i++) {
-            if(reached) {
-                q[i-1] = q[i];
-            } else {
-                if(&q[i] == proc) {
-                    reached = 1;
-                }
+    for (int i = 0; i < *len; i++) { //moves every element after selection to the left (so deletes selection)
+        if(reached) {
+            q[i-1] = q[i];
+        } else {
+            if(&q[i] == proc) {
+                reached = 1;
             }
         }
-        
-        if(!reached) printf("not found");
-        else *len = *len-1;
-        return;
     }
+    if(!reached) printf("not found"); //err
+    else *len = *len-1;
+    return;
 }
+// functions for finding the lcm max time
 unsigned int gcd2(int a, int b) {
     if (a == 0)
         return b;
@@ -71,6 +68,8 @@ unsigned int computeLCM(int *periodArray, unsigned int len) {
     }
     return a;
 }
+//end lcm
+//  Comparison function for the DEADLINE quicksort
 int compare(const void *v1, const void *v2) {
     const struct runningProcess *p1 = (struct runningProcess *)v1;
     const struct runningProcess *p2 = (struct runningProcess *)v2;
@@ -86,6 +85,7 @@ int compare(const void *v1, const void *v2) {
         return -1;
     return 0;
 }
+//  Comparison functions for the PROCESS CREATION quicksort
 int compare2(const void *v1, const void *v2) {
     const struct runningProcess *p1 = (struct runningProcess *)v1;
     const struct runningProcess *p2 = (struct runningProcess *)v2;
@@ -102,12 +102,17 @@ int compare2(const void *v1, const void *v2) {
     return 0;
 }
 
+// MAIN
+
 int main() {
+    // # of basic processes that exist
     unsigned int processNumber;
     struct process *processList;
-    int readyQueueLength = 0;
-    int creations = 0;
+
+    // Variable list ready queue and its dynamic length
     struct runningProcess *readyQueue;
+    int readyQueueLength = 0;
+
     struct runningProcess *dlq;
     struct runningProcess *prq;
     struct runningProcess *running = NULL;
@@ -119,6 +124,7 @@ int main() {
     int *periodArray;
     unsigned int maxTime;
     unsigned long currentTime = 0;
+    int creations = 0;
 
     printf("Enter the number of processes to schedule: ");
     scanf("%u", &processNumber);
