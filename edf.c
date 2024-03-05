@@ -71,13 +71,45 @@ unsigned int computeLCM(unsigned int *periodArray, unsigned int len) {
     }
     return a;
 }
+int compare(const void *v1, const void *v2) {
+    const struct runningProcess *p1 = (struct runningProcess *)v1;
+    const struct runningProcess *p2 = (struct runningProcess *)v2;
+    const int p1i = p1->proc->cputime - p1->timeSpent;
+    const int p2i = p2->proc->cputime - p2->timeSpent;
+    if (p1->proc->pid < p2->proc->pid)
+        return +1;
+    else if (p1->proc->pid > p2->proc->pid)
+        return -1;
+    else if (p1i < p2i)
+        return +1;
+    else if (p1i > p2i)
+        return -1;
+    return 0;
+}
+int compare2(const void *v1, const void *v2) {
+    const struct runningProcess *p1 = (struct runningProcess *)v1;
+    const struct runningProcess *p2 = (struct runningProcess *)v2;
+    const int p1i = p1->age;
+    const int p2i = p2->age;
+    if (p1i < p2i)
+        return +1;
+    else if (p1i > p2i)
+        return -1;
+    else if (p1->proc->pid > p2->proc->pid)
+        return +1;
+    else if (p1->proc->pid < p2->proc->pid)
+        return -1;
+    return 0;
+}
 
-int main(int argc, char *argv[]) {
+int main() {
     unsigned int processNumber;
     struct process *processList;
     int readyQueueLength = 0;
     int creations = 0;
     struct runningProcess *readyQueue;
+    struct runningProcess *dlq;
+    struct runningProcess *prq;
     struct runningProcess *running = NULL;
     struct runningProcess *prev;
     int prevtid = -1;
@@ -106,11 +138,12 @@ int main(int argc, char *argv[]) {
     maxTime = computeLCM(periodArray, processNumber);
 
     while(currentTime < maxTime) {
-        
+        dlq = readyQueue;
+        qsort(dlq, readyQueueLength, sizeof(struct runningProcess), compare);
         for(int i=readyQueueLength-1;i>=0;i--) { //creating
-            if(readyQueue[i].timeLeft == 0) {
-                readyQueue[i].timeLeft = readyQueue[i].proc->period;
-                printf("%lu: process %u missed deadline (%u ms left), new deadline is %lu\n", currentTime, readyQueue[i].proc->pid, readyQueue[i].proc->cputime - readyQueue[i].timeSpent, currentTime+readyQueue[i].proc->period);
+            if(dlq[i].timeLeft == 0) {
+                dlq[i].timeLeft = dlq[i].proc->period;
+                printf("%lu: process %u missed deadline (%u ms left), new deadline is %lu\n", currentTime, dlq[i].proc->pid, dlq[i].proc->cputime - dlq[i].timeSpent, currentTime+dlq[i].proc->period);
             }
         }
         
@@ -122,10 +155,12 @@ int main(int argc, char *argv[]) {
             }
         }
         if(creations > 0) {
+            prq = readyQueue;
+            qsort(prq, readyQueueLength, sizeof(struct runningProcess), compare2);
             printf("%lu: processes (oldest first):", currentTime);
             creations = 0;
             for(int i=0; i<readyQueueLength; i++) {
-                printf(" %u (%u ms)", readyQueue[i].proc->pid, readyQueue[i].proc->cputime - readyQueue[i].timeSpent);
+                printf(" %u (%u ms)", prq[i].proc->pid, prq[i].proc->cputime - prq[i].timeSpent);
             }
             printf("\n");
         }
